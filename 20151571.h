@@ -13,7 +13,8 @@
 enum COMMAND{
     help, dir, quit, history, dump, edit,
     Fill, Reset, opcode, opcodelist, assemble,
-    type, symbol, Error
+    type, symbol, progaddr, loader, run, bp,
+    Error
 };
 
 //project #1

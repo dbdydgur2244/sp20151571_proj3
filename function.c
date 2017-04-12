@@ -13,7 +13,11 @@ const char *help_list[] = {
     "opcodelist",
     "assemble fileneme",
     "type filename",
-    "symbol"
+    "symbol",
+    "progaddr",
+    "loader",
+    "run",
+    "bp"
 };
 
 const char *Help[] = {
@@ -36,7 +40,11 @@ const char *Help[] = {
     "opcodelist",
     "assemble",
     "type",
-    "symbol"
+    "symbol",
+    "progaddr",
+    "loader",
+    "run",
+    "bp"
 };
 
 // a ,b  값중 작은 값을 반환해준다.
@@ -263,7 +271,7 @@ int command_check(char *user_str){
         len++;
         token = strtok(NULL, sep);
     }
-
+    
     if ( ( 0 <= command_num && command_num <= 7 ) || command_num ==  14
             || command_num == 16 || command_num == 19)
         if ( len > 1 )
@@ -345,6 +353,18 @@ void main_process(char *buffer, History *head, Shell_Memory *Shmemory,\
 
             case symbol:
                 command_symbol(symbolArr);
+                break;
+
+            case progaddr:
+                break;
+                
+            case loader:
+                break;
+
+            case run:
+                break;
+
+            case bp:
                 break;
         }
         if ( error_check == 1 )
