@@ -1,4 +1,6 @@
 #include "assemble.h"
+#include "string_mani.h"
+#include "opcode.h"
 
 /* 두개의 symbol string을 비교해주는 함수
  *  a < b return -1
@@ -44,76 +46,6 @@ void print_symbol(symbol_info *symbolTable, int size){
     }
 }
 
-/*
- * whitespace('\t', ' ') 같은 것들을 삭제해주는 함수
- */
-void delete_whitespace(char* str){
-    int white_flag = 0;
-    int i, len;
-    int idx;
-    int first_char = 0;
-    int sep_flag = 0;
-
-    len = strlen(str);
-    for(i = 0; i <= len; i++){
-        if(i == len){
-            //EOF 넣음
-            if(white_flag >= 1)
-                str[i-white_flag] = '\0';
-        }
-        //whitespace 인경우 flag 증가
-        if(str[i] == '\''){
-            sep_flag++;
-            white_flag = 0;
-            if(sep_flag == 2)
-                sep_flag = 0;
-        }
-        if(sep_flag)
-            continue;
-
-        if(str[i] == ' ' || str[i] == '\t'){
-            white_flag++;
-            if(str[i] == '\t')
-                str[i] = ' ';
-        }
-
-        else{ // whitespace 아닌 경우
-            if(white_flag >= 1){ // whitespace가 여려 개인 경우
-                if(!first_char)
-                    strncpy(str+idx, str+i, len-i+1);
-                else if(str[i] == ',')
-                    strncpy(str+idx, str+i, len-i+1), i--;
-                // whitespace 만큼 당김
-                else if(white_flag > 1)
-                    strncpy(str+idx+1, str+i, len-i+1);
-                str[idx+len-i+1] = '\0';
-
-                len = strlen(str);
-                i = idx;
-            }
-            // ','인 경우
-            if(str[i] == ','){
-                // Add a space behind of ','
-                if(i+1 < 256 && (str[i+1] != ' ' && str[i+1] != '\t')){
-                    char* tmp = (char*)malloc((len-i)*sizeof(char));
-                    strcpy(tmp, str+i+1);
-                    str[i+1] = ' ';
-                    str[i+2] = '\0';
-                    strcat(str,tmp);
-                    len = strlen(str);
-                    i--;
-                }
-            }
-            // flag 초기화
-            white_flag = 0;
-            first_char = 1;
-        }
-        // idx 초기화
-        if(white_flag == 1)
-            idx = i;
-    }
-}
-
 //symbol 초기화 함수
 void symbol_init(Symbol_table *Stable){
     symbolPtr ptr;
@@ -126,21 +58,6 @@ void symbol_init(Symbol_table *Stable){
         }
         Stable->table[i] = NULL;
     }
-}
-
-//opcode find function
-//존재하면 opcode pointer를 return
-//없으면 return NULL
-Hnode opcode_find(Hash *hashTable, char *mnemonic){
-    int i;
-    Hnode ptr;
-    for ( i = 0; i < hashTable->size; ++i ){ // hash_table에서 일일이 찾는다
-        for ( ptr = hashTable->Table[i]; ptr != NULL; ptr = ptr -> next ){
-            if ( strcmp( ptr->str_opcode , mnemonic ) == 0)
-                return ptr;
-        }
-    }
-    return NULL; // 존재하지 않는 경우
 }
 
 //symbol table key 값을 구하는 함수
@@ -299,11 +216,11 @@ int loc_count(char *string, int asmd, int location){
 }
 
 //해당하는 문자열이  주석인지 opcode인지 assemble directives인지 구해주는 함수
-int get_type(char *string, Hash *hashTable){
+int get_type(char *string){
     if ( strcmp (string , "." ) == 0 )
         return comment;
-    else if( ( string[0] == '+' && opcode_find ( hashTable, string + 1) != NULL )
-            ||  opcode_find ( hashTable, string ) != NULL  )
+    else if( ( string[0] == '+' && opcode_find ( string + 1) != NULL )
+            ||  opcode_find ( string ) != NULL  )
         return opcode; // opcode
     else if ( get_asmd(string) != -1 )
         return asmd; // assembly directives
@@ -314,7 +231,7 @@ int get_type(char *string, Hash *hashTable){
  * error가 발견되면 return 1
  * 정상적이라면 return 0
  */
-int get_argu(char *buffer, char *argu[], Hash *hashTable){
+int get_argu(char *buffer, char *argu[] ){
     int len = 0, num;
     char sep[] = " \t\r\n";
     char *token = NULL;
@@ -333,7 +250,7 @@ int get_argu(char *buffer, char *argu[], Hash *hashTable){
     token = strtok(buffer, sep);
     while( token != NULL){
         argu[len] = token;
-        type[len++]  = get_type(token, hashTable);
+        type[len++]  = get_type(token);
         token = strtok(NULL, sep);
     }
 
@@ -403,14 +320,14 @@ int get_objcode(int opcode, int n, int i, int x,
  * error가 발견 되면 return -1
  * 정상적이라면 return 1을 한다
  */
-int opcode_location(Pass1 *Pinfo, Hash *hashTable, char **argu, line_inform *line_info){
+int opcode_location(Pass1 *Pinfo, char **argu, line_inform *line_info){
     Hnode ptr;
     int format = 0;
     if(argu[0][0] == '+')
         format = 4;
 
     else{
-        ptr = opcode_find ( hashTable, argu[0]);
+        ptr = opcode_find ( argu[0]);
         if ( strcmp(ptr->code, "1" ) == 0)
             format = 1; // format 1
         else if ( strcmp(ptr->code, "2") == 0)
@@ -491,8 +408,7 @@ int make_line(char *string, int type, size_t idx, int *flag,
     }
 
     else if ( type == opcode ){ // opcode인 경우
-        if ( opcode_location(Pinfo, Stable->hashTable,
-                    Pinfo->argu, &line_info[idx]) == -1 ) // opcode location counter function
+        if ( opcode_location(Pinfo, Pinfo->argu, &line_info[idx]) == -1 ) // opcode location counter function
             return -1; // error 
         strcpy( line_info[idx].opcode, Pinfo->argu[0]);
         if(Pinfo->argu[1] != NULL)
@@ -552,11 +468,10 @@ int make_line(char *string, int type, size_t idx, int *flag,
         else // 이미 있는 경우 에러 처리
             return -1;
         line_info[idx].label_flag = 1;
-        label_type = get_type(Pinfo->argu[1], Stable->hashTable);
+        label_type = get_type(Pinfo->argu[1] );
 
         if ( label_type == opcode ) { // opcode인 경우
-            if ( opcode_location(Pinfo, Stable->hashTable,
-                        &(Pinfo->argu[1]), &line_info[idx]) == -1 )
+            if ( opcode_location(Pinfo, &(Pinfo->argu[1]), &line_info[idx]) == -1 )
                 return -1;
             strcpy( line_info[idx].opcode, Pinfo->argu[1]);
             strcpy( line_info[idx].operhand, Pinfo->argu[2]);
@@ -650,7 +565,7 @@ int command_assemble(Symbol_table *symbolTable, symbol_info *success_symbol, cha
             continue;
         strncpy ( copy , buffer, sizeof(copy) );
 
-        type = get_argu( copy , argu, symbolTable->hashTable); // 해당하는 라인이 어떤 형식인지 구해주는 함수
+        type = get_argu( copy , argu ); // 해당하는 라인이 어떤 형식인지 구해주는 함수
         Pinfo.argu = argu;
         //make line function
         if ( make_line(copy, type, idx++, &flag, symbolTable, &Pinfo, line_info) == -1 )
@@ -771,7 +686,7 @@ int obj_byte(FILE *fp, Symbol_table *symbolTable,
  * if error found return 1
  * else return 0
  */
-int obj_opcode(FILE *fp, Hash *hashTable, Symbol_table *symbolTable,
+int obj_opcode(FILE *fp, Symbol_table *symbolTable,
         line_inform *line_info, object_inform *obj_info,
         int *obj_idx, int *obj_flag, int *arr, int base_address) {
 
@@ -785,7 +700,7 @@ int obj_opcode(FILE *fp, Hash *hashTable, Symbol_table *symbolTable,
     int format = line_info->format;
     fprintf(fp,"%-10s\t%-10s\t",line_info->opcode,line_info->operhand);
 
-    hashptr = opcode_find(hashTable, line_info->opcode); // opcode
+    hashptr = opcode_find(line_info->opcode); // opcode
 
     if(format == 1) { //format 1인 경우
         fprintf(fp,"\n");
@@ -909,7 +824,7 @@ int obj_opcode(FILE *fp, Hash *hashTable, Symbol_table *symbolTable,
         strcpy(tmp3, line_info->opcode);
         strcpy(tmp3, tmp3+1);
 
-        hashptr = opcode_find(hashTable, tmp3); // opcode 인지 확인
+        hashptr = opcode_find( tmp3); // opcode 인지 확인
 
         if(strstr(tmp2,",")!=NULL) {
             if(strstr(tmp2,"X") != NULL || strstr(tmp2,"x")) { // index mode check
@@ -1042,7 +957,6 @@ int assembler_pass2(char *filename, Symbol_table *symbolTable, int length,
     int end_flag = 0, error = 0, obj_flag = 0, obj_idx = 0;
     int n, i, x, b, p , e;
     int asmd, start_line;
-    Hash *hashTable = symbolTable->hashTable;
     symbolPtr  sptr;
     object_inform obj_info[300];
 
@@ -1125,8 +1039,8 @@ int assembler_pass2(char *filename, Symbol_table *symbolTable, int length,
         else
             fprintf(lstfp, "\t");
 
-        if ( opcode_find(hashTable, line_info[idx].opcode ) == NULL &&
-                opcode_find(hashTable, (line_info[idx].opcode)+1) == NULL &&
+        if ( opcode_find( line_info[idx].opcode ) == NULL &&
+                opcode_find( (line_info[idx].opcode)+1) == NULL &&
                 get_asmd(line_info[idx].asmd) == -1) {	//opcode 및 assemble directives 둘 다 없는 경우
 
             printf("Error in opcode or symbol\n");
@@ -1209,7 +1123,7 @@ int assembler_pass2(char *filename, Symbol_table *symbolTable, int length,
         }
         else { //opcode 인 경우
             arr[0] = n; arr[1] = i; arr[2] = x; arr[3] = b; arr[4] = p; arr[5] = e;
-            error = obj_opcode(lstfp, hashTable, symbolTable, &line_info[idx],
+            error = obj_opcode(lstfp, symbolTable, &line_info[idx],
                     obj_info,&obj_idx, &obj_flag, arr, Pinfo->base_address);
             if ( error )
                 continue;

@@ -5,13 +5,12 @@ int main(void){
     char tmpc;
     const int Max_len = 256; 
     int len = 0;
-    Hash hashTable;
     History Hhead;
-    Shell_Memory Shmemory;
     Symbol_table Stable ={ 37 };
     symbol_info symbolArr[500];
-    sp1_init ( &Hhead, &Shmemory, &hashTable);
+    sp1_init ( &Hhead);
     sp2_init (&Stable);
+    
     while(1){
         printf("sicsim> ");
         len = 0;
@@ -30,8 +29,7 @@ int main(void){
         }
         
         buffer[len] = '\0';
-        main_process(buffer, &Hhead, &Shmemory, &hashTable,
-                &Stable, symbolArr);
+        main_process(buffer, &Hhead, &Stable, symbolArr);
     }
     return 0;
 }

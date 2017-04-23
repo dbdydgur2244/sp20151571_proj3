@@ -20,6 +20,7 @@ typedef struct _HASH_{
 
 typedef struct HASH_Linked_List{
     int n_opcode;
+    int format;
     char code[5];
     char str_opcode[50];
     Hnode next;
@@ -51,12 +52,11 @@ typedef struct __SYMBOL__{
 typedef struct{
     const int size; // 37
     Symbol *table[37];
-    Hash *hashTable;
 }Symbol_table;
 //symbol hashtable
 
 typedef struct{
-    char symbol[5];
+    char symbol[20];
     int address;
 }symbol_info;
 //symbol information
@@ -84,4 +84,35 @@ typedef struct{
 }object_inform;
 //object code information
 
+typedef struct{
+    char name[7];
+    int address;
+}EXTSYM;
+
+typedef struct{
+    char name[30];
+    int address;
+    int length;
+    int Dnum;
+    EXTSYM ExtSym[50];
+}CSADDR;
+
+typedef struct EXTERNAL_SYMBOL * extsptr;
+typedef struct EXTERNAL_SYMBOL{
+    char symbol[30];
+    int address;
+    int cs_flag;
+    extsptr next;
+}ExtSymbol;
+
+typedef struct{
+    const int size; // 37
+    ExtSymbol *table[37];
+    CSADDR ConSec[4];
+}ESTAB;
+
+typedef struct __BP_NODE{
+    int address;
+    struct __BP_NODE *next;
+}BP_NODE;
 #endif
