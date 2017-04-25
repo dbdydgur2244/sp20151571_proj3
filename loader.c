@@ -2,23 +2,27 @@
 #include "loader.h"
 #include "memory.h"
 #include "string_mani.h"
-
+#include "run.h"
+#include "debug.h"
 int start_address = 0;
 ESTAB ExtTable = { 37 };
 
+/*
+ * EXTERN SYMBOL TABLE init function
+ */
 void Est_init(){
     extsptr nptr;
-   for ( int i = 0 ; i < ExtTable.size; ++i){
-       for ( extsptr ptr = ExtTable.table[i]; ptr != NULL; ){
+    for ( int i = 0 ; i < ExtTable.size; ++i){
+        for ( extsptr ptr = ExtTable.table[i]; ptr != NULL; ){
             nptr = ptr->next;
             free(ptr);
             ptr = nptr;
-       }
-       ExtTable.table[i] = NULL;
-   }
+        }
+        ExtTable.table[i] = NULL;
+    }
 
-   for ( int i = 0; i < 4; ++i )
-       ExtTable.ConSec[i].Dnum = 0;
+    for ( int i = 0; i < 4; ++i )
+        ExtTable.ConSec[i].Dnum = 0;
 }
 
 /*
@@ -27,7 +31,6 @@ void Est_init(){
 int Est_key(char *string){
     int key;
     size_t len = strlen(string);
-
     for ( size_t i = 0; i < len; ++i )
         key += string[i];
     return key % ExtTable.size;
@@ -71,6 +74,7 @@ extsptr Est_find(char *string){
 /* 
  * Pass1 for linking loader
  * H, D record만 관련해서 수행한다.
+ * 만약에 에러가 있으면 return 0, else return 1
  */
 int link_pass1(FILE *fp, int csnum, int *csaddr){
     char buffer[256];
@@ -84,11 +88,11 @@ int link_pass1(FILE *fp, int csnum, int *csaddr){
     int flag = 1;
     CSADDR *ConSec = &(ExtTable.ConSec[csnum]);
     EXTSYM *ExtSym = ConSec->ExtSym;
-   
+
     while( fgets( buffer, sizeof(buffer), fp) != NULL ) {
         if ( !flag )
             return 0;
-        
+
         len = strlen(buffer);
         if ( ! ( len > 0 ) )
             break;
@@ -97,7 +101,7 @@ int link_pass1(FILE *fp, int csnum, int *csaddr){
 
         if ( !flag )
             return 0;
-        
+
         memset(str, 0 , sizeof(str));
 
         sscanf(buffer, "%c%[^\n]", &recode, str);
@@ -112,6 +116,8 @@ int link_pass1(FILE *fp, int csnum, int *csaddr){
             strcpy( ConSec[csnum].name, name);
             ConSec->address = address + diff;
             ConSec->length = length;
+            ExtSym[0].address = address + diff;
+            strcpy( ExtSym[0].name, name);
             // for rellocation
         }
 
@@ -124,8 +130,8 @@ int link_pass1(FILE *fp, int csnum, int *csaddr){
                 flag = Est_insert(name, address + diff, 0);
                 if ( !flag )
                     return 0;
-                strcpy(ExtSym[ i / 12 ].name , name);
-                ExtSym[ i / 12].address = address + diff;
+                strcpy(ExtSym[ i / 12 + 1 ].name , name);
+                ExtSym[ i / 12 + 1].address = address + diff;
                 // for rellocation
                 ConSec->Dnum++;
             }
@@ -133,14 +139,19 @@ int link_pass1(FILE *fp, int csnum, int *csaddr){
 
         else if ( recode == 'E' ) {
             sscanf( str, "%6X", &address);
-        
+
         }
     }
     *csaddr += length;
     rewind(fp);
     return 1;
 }
-
+/*
+ * linking loader pass2 algorithm function
+ * In this fucntion, process R and M, T recode.
+ * So loading this objfile to memory in this function.
+ * if there is error, then return 0, else return 1
+ */
 int link_pass2(FILE *fp, int csnum, int start_address){
     char buffer[256];
     char str[256];
@@ -152,6 +163,7 @@ int link_pass2(FILE *fp, int csnum, int start_address){
     int address;
     int flag = 1;
     int curr, idx;
+    int diff;
     int value;
     int size;
     EXTSYM  EXTARR[50];
@@ -167,7 +179,7 @@ int link_pass2(FILE *fp, int csnum, int start_address){
         if ( !flag )
             return 0;
         sscanf(buffer, "%c%[^\n]", &recode, str);
-        
+
 
         if ( recode == 'H'){
             sscanf(str, "%6s%6X%6X", name, &address, &length);
@@ -175,40 +187,44 @@ int link_pass2(FILE *fp, int csnum, int start_address){
             str_replace(name, " ", "");
             ptr = Est_find(name);
             if ( ptr == NULL ){
-                 fprintf(stderr, "NO [%s] EXTSYM ERROR!\n", name);
-                 return 0;
+                fprintf(stderr, "NO [%s] EXTSYM ERROR!\n", name);
+                return 0;
             }
+            diff = start_address - address;
             EXTARR[0].address = ptr->address;
-            strcpy(EXTARR[0].name, ptr->symbol);
+            strcpy(EXTARR[0].name, name);
         }
-        
+
         if ( recode == 'T'){
             sscanf(str, "%6X%2X", &address, &length);
             curr = 8; idx = 0;
             while ( idx < length ){
                 sscanf(str + curr, "%2X", &value);
-                set_memory(address + idx, address);
+                set_memory(address + diff + idx, value);
                 idx++;
                 curr += 2;
             }
         }
-        
+
         else if ( recode == 'R' ){
-            if ( ! recode_R(EXTARR, str + 1) )
+            if ( ! recode_R(EXTARR, str ) )
                 return 0;
         }
 
         else if ( recode == 'M'){
             sscanf(str, "%6X%2X%c%2X", &address, &size, &sign, &idx);
-            delete_whitespace(name);
-            str_replace(name, " ", "");
-            recode_M(name, sign, address, size, csnum, idx);
+            recode_M(EXTARR, sign, address + diff, size, csnum, idx - 1);
         }
     }
     rewind(fp);
     return 1;
 }
 
+/*
+ * progadder 명령어를 수행하는 함수
+ * loading 할 때 시작 주소를 정해준다.
+ * error가 있으면 return 0
+ */
 int command_progaddr(char *buffer){
     char *token = NULL;
     char sep[] = " \t";
@@ -217,16 +233,16 @@ int command_progaddr(char *buffer){
     int len = 0;
 
     token = strtok(buffer, sep);
-    
+
     if ( token == NULL ) {
         fprintf(stderr, "PLEASE INPUT ADDRESS PLEASE\n");
         return 0;
     }
-    
+
     while ( token != NULL ) {
         token = strtok(NULL, sep);
         if ( token == NULL )
-           break; 
+            break; 
         len++;
         if ( len > 1 ){
             fprintf(stderr, "PLEASE INPUT ONLY ADDRESS PLEASE\n");
@@ -245,6 +261,11 @@ int command_progaddr(char *buffer){
     return 1;
 }
 
+/*
+ * loader 명령어를 수행하는 함수.
+ * 주어진 시작 주소로 부터 obj 파일을 memory에 적재한다.
+ * 에러가 있으면 return 0, else return 1이다.
+ */
 int command_loader(char *command){
     char copy[256];
     char *token = NULL;
@@ -257,8 +278,9 @@ int command_loader(char *command){
     int error_flag = 1; // if there is error -> 1
     CSADDR *csaddr;
     Est_init();
+    command_reset();
     strncpy(copy, command, sizeof(copy));
-    
+
     token = strtok( copy, sep );
     while( token != NULL ) {
         token = strtok( NULL, " \t");
@@ -275,23 +297,27 @@ int command_loader(char *command){
     for ( int i = 0; i < len; ++i ){
         fp[i] = fopen (filename[i], "r");
         if ( fp[i] == NULL ){
-            fprintf(stderr, "NO FILE\n");
+            fprintf(stderr, "NO FILE. So can not load files\n");
             return 0;
         }
     }
-    
+
     for ( int i = 0; i  < len; ++i ){
         error_flag = link_pass1(fp[i], i, &address);
-        if ( !error_flag )
+        if ( !error_flag ){
+            fprintf(stderr, "There is error in Lingking loader pass1\n");
             break;
+        }
     }
 
     for ( int i = 0; i  < len; ++i ){
         if ( ! error_flag )
             break;
         error_flag = link_pass2(fp[i], i, ExtTable.ConSec[i].address);
-        if( !error_flag )
+        if( !error_flag ){
+            
             break;
+        }
     }
 
     for ( int i = 0; i < len; ++i )
@@ -301,7 +327,7 @@ int command_loader(char *command){
         Est_init();
         return 0;
     }
-    
+
     printf("control\t\tsymbol\t\taddress\t\tlength\n");
     printf("section\t\tname\n");
     printf("---------------------------------------------------------------\n");
@@ -313,35 +339,39 @@ int command_loader(char *command){
             printf("\t\t%-6s\t\t%04X\t\t\n", csaddr->ExtSym[j].name, csaddr->ExtSym[j].address);
     }
     printf("---------------------------------------------------------------\n");
-    printf("\t\t\t\t\ttotal length  %4X\n", total_length);
-    start_address = 0;
+    printf("\t\t\t\ttotal length\t%04X\n", total_length);
+    
+    set_start_address(start_address);
+    set_end_address(start_address + total_length);
+
+    reg_init();
+    currbp_init();
     return 1;
 }
 
-void recode_M(char *name, char sign, int address, int size, int csnum, int idx){
-    int value = 1;
-    int mask = 0x0000;
+/*
+ * 이 함수는 recode가 M인 경우 처리해주는 함수이다.
+ * 여기서 relocative addressing을 적용한다.
+ * EXTARR에 reference number에 대한 저장된 정보를 가지고서 relocative addressing을 한다.
+ */
+void recode_M(EXTSYM *EXTARR, char sign, int address, int size, int csnum, int idx){
+    int value = 0;
+    int mask = 0;
     int addr, tmp;
     int signb;
-    extsptr ptr = Est_find(name);
 
-    if ( ptr == NULL) {
-        fprintf(stderr, "NO EXTERNAL SYMBOL ERROR\n");
-        return;
-    }
+    signb = ( sign == '-' ) ? -1 : 1;
 
-    signb = ( sign == '-' ) ? -1 : 0;
-
+    tmp = size / 2 + size % 2;
     addr = address;
     while( tmp ){
-        value = value << 8;
+        value <<= 8;
         value += get_memory(addr);
-        addr++;
         tmp--;
+        addr++;
     }
 
-    size = ( size + size % 2) / 2;
-    tmp = size;
+    tmp = size ;        
     while ( tmp ) {
         mask <<= 4;
         mask += 0xF;
@@ -349,34 +379,35 @@ void recode_M(char *name, char sign, int address, int size, int csnum, int idx){
     }
 
     tmp = mask & value;
-     
-    tmp += ExtTable.ConSec[csnum].ExtSym[idx].address * signb ;
+
+    tmp += EXTARR[idx].address * signb;
     tmp = mask & tmp;
 
-    /* *** ~mask = 0xFF...F0...0 ****/
     value = value & (~mask);
     value += tmp;
 
-    /* *** edit modified data at memory ****/
     addr = address;
-    tmp = size;
-
+    tmp = size / 2 + size % 2;
     while( tmp ){
-        set_memory(tmp, ((value >> ((addr-1)*8)) & 0xFF));
+        set_memory(addr, ((value >> ( ( tmp - 1 ) * 8 ) ) & 0xFF));
         addr++;
         tmp--;
     }
 
 }
 
+/*
+ * 이 함수는 recode가 R인 경우 처리해주는 함수이다.
+ * 이 함수에서 reference number 처리를 해준다.
+ */
 int recode_R(EXTSYM *EXTARR, char *str){
     int len;
     int idx;
     char name[7];
     extsptr ptr;
     len = (int) strlen(str);
-    for ( int i = 0; i < len / 8; i+= 8 ){
-        sscanf(str + i, "%2X%6[^\n]", &idx, name);
+    for ( int i = 0; i < len; i+= 8 ){
+        sscanf(str + i, "%2X%6s", &idx, name);
         delete_whitespace(name);
         str_replace(name, " ", "");
         ptr = Est_find(name);

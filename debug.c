@@ -1,20 +1,30 @@
 #include "debug.h"
 #include "structure.h"
 
-typedef BP_NODE * node;
-node head = NULL;
-node curr = NULL;
+//typedef BP_NODE * node;
+int breakpoint[200];
+int currbp = -1;
+int length = 0;
 
 /*
  * command breakpoint 명령어를 수행하는 함수
  */
+void bp_init(int option){
+   for ( int i = 0; i  < 200; ++i)
+       breakpoint[i] = -1 & 0xFFFFFF;
+   if ( option == 1)
+       printf("\t[ok] clear all breakpoints\n");
+   length = 0;
+}
+
+void currbp_init(){
+    currbp = -1;
+}
 
 int command_bp(char *buffer){
 	char *token;
-	int addr;
     char *error;
     int bp = -1;
-	//int error = 0;
     int len = 0;
     token = strtok(buffer, " \t");
 
@@ -30,135 +40,65 @@ int command_bp(char *buffer){
             return 0;
     }
 
-    if ( len == 0 )
+    if ( len == 0 ){
         print_bp();
+        return 0;
+    }
 
     else if ( len > 1)
         return 0;
-   
-    if ( bp != -1 ){
-        add_at_bp(bp);
-        printf("\t[ok] create breakpoint %04X\n",addr);
 
-    }
-	return 0;
+    add_bp(bp);
+    printf("\t[ok] create breakpoint %04X\n", bp);
+    return 0;
 }
 
-/**** print every breakpoint ****/
+int cmp(const void *a, const void *b){
+    int *A = (int *)a, *B = (int *)b;
+    if ( *A < *B )
+        return -1;
+    else if ( *A == *B )
+        return 0;
+    return 1;
+}
+
 void print_bp(){
-	node ptr = head;
 	printf("\tbreakpoint\n");
 	printf("\t----------\n");
-	while(ptr != NULL){
-		printf("\t%04X\n",ptr->address);
-		ptr = ptr->next;
-	}
+	for ( int i = 0; i < length; ++i)
+		printf("\t%04X\n", breakpoint[i]);
 }
 
-/**** add at bp linked list ****/
-void add_at_bp( int address ){
-	node ptr;
-    node prev;
-	node nptr;
-    nptr = (node)malloc(sizeof(*nptr));
-    nptr->address = address;
-    nptr->next = NULL;
-
-    if ( head == NULL )
-        head = nptr;
-	
-    else{
-		prev = head;
-		
-		while ( prev->next != NULL){
-			if( prev->address < address ){
-				ptr = prev->next;
-				if(ptr->address > address)
-					break;
-			}
-			else if(prev->address == address){
-				fprintf(stderr, "ALREADY EXIST breakpoint.\n");
-                return;
-			}
-			else
-				break;
-			prev = prev->next;
-		}
-
-		if(prev == head){
-			if(prev->address == address){
-                fprintf(stderr, "ALREADY EXIST breakpoint.\n");
-                return;
-            }
-
-			else if(prev->address < address){
-				nptr->next = prev->next;
-				prev->next = nptr;
-			}
-
-			else{
-				nptr->next = prev;
-				head = nptr;
-			}
-		}
-		else if(prev->next == NULL)
-			prev->next = nptr;
-
-		else{
-            nptr->next = prev->next;
-			prev->next = nptr;
-		}
-	}
-}
-
-void bp_init(int option){
-	node ptr = head;
-	while(ptr != NULL){
-		ptr = head->next;
-		free(head);
-		head = ptr;
-	}
-	if(option == 1)
-		printf("\t[ok] clear all breakpoints\n");
+void add_bp( int address ){
+    int i = 0;
+    for ( i = 0; i < length; ++i){
+        if( breakpoint[i] == address) {
+            fprintf(stderr, "ALREADY EXIST breakpoint.\n");
+            break;
+        }
+        if ( breakpoint[i] > address)
+            break;
+    }
+    breakpoint[length] = address;
+    if ( currbp != -1 && breakpoint[currbp] >= address )
+        currbp++;
+    length++;
+    qsort(breakpoint,length, sizeof(breakpoint), cmp);
 }
 
 int get_nextbp(int curr){
-	int address = -1;
-	node prev = head;
-	node tmp;
+    if ( length == 0)
+        return -1;
 
-	while(prev != NULL && prev->next != NULL){
-		/**** curr <= prev_addr ****/
-		if(prev->address >= curr){
-			if(prev->address == curr && curr != NULL && prev == curr)
-				tmp = prev->next;
-			else{
-				curr = prev;
-				return prev->address;
-			}
-		}
-		/**** prev < curr ****/
-		else
-			tmp = prev->next;
-		
-		/**** prev < curr <= tmp ****/
-		if(tmp->address >= curr){
-			if(tmp->address == curr && curr != NULL && tmp == curr)
-				prev = prev->next;
-			else{
-				curr = tmp;
-				return tmp->address;
-			}
-		}
+    if ( currbp == -1 )
+        return breakpoint[++currbp];
+    
+    else if ( currbp >= length )
+        return 0;
 
-		/**** prev < tmp < curr ****/
-		else
-			prev = prev->next;
-	}
-	if(prev != NULL && prev->address >= curr && prev != curr){
-		curr = prev;
-		return prev->address;
-	}
-	return address;
+    else if ( breakpoint[currbp] != (-1 & 0xFFFFFF))
+        return breakpoint[++currbp];
+   
+    return (-1 & 0xFFFFFF);
 }
 

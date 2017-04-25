@@ -111,8 +111,10 @@ typedef struct{
     CSADDR ConSec[4];
 }ESTAB;
 
+/*
 typedef struct __BP_NODE{
     int address;
     struct __BP_NODE *next;
 }BP_NODE;
+*/
 #endif

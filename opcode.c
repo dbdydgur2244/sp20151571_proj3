@@ -57,13 +57,12 @@ void opcode_insert(int n_opcode, char *mnemonic, char *code){
     int key = 0;
     nptr = malloc(sizeof(Hash_Node));
     strncpy ( nptr->str_opcode, mnemonic, sizeof(nptr->str_opcode) );
-    strncpy( nptr->code , code, sizeof(nptr->code) );
-    
+    strncpy( nptr->code , code, sizeof(nptr->code) ); 
     if ( strcmp ( code, "1") == 0)
         nptr->format = 1;
     else if ( strcmp ( code, "2") == 0)
         nptr->format = 2;
-    else if ( strcmp( code, "3/4") == 4)
+    else if ( strcmp( code, "3/4") == 0)
         nptr->format = 3;
 
     for( int i = 0; i < (int)strlen(mnemonic); ++i )

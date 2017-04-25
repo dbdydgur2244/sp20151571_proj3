@@ -65,3 +65,38 @@ Commands that can use in sicsim
         - Show file contents
     - symbol
         - Show the recent symbol table of the successful assemble file
+
+    - Link following files
+            - If file doesn't exist or can't link, loader will not work
+        - bp
+          - Set breakpoint
+            - When run, if PC reach to bp, break execution and show registers
+        - run
+          - Run program
+            - If loader successed, starting address of run is progaddr(start of
+              program)
+            - end of run is start address + program length
+        - progaddr
+          - Set loader start point
+            - If you run, set start address as progaddr value
+    
+     -progaddr
+        -Set loader start point
+
+     -loader
+         - Link following files
+            - If file doesn't exist or can't link, loader will not work
+            - If restart loader, reset all memory, and ESTAB.
+    
+     - run
+        - Run program
+
+    -debug
+        -bp
+            - bp [address]
+                - Set breakpoint
+            - bp clear
+                - Clear all breakpoint
+            - bp
+                - Printing all breakpoint
+    

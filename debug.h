@@ -5,10 +5,12 @@
 #include <string.h>
 #include <stdlib.h>
 
+int cmp(const void *, const void *);
 int command_bp(char *buffer);
 void print_bp();
-void add_at_bp(int address);
+void add_bp(int address);
 void bp_init(int option);
+void currbp_init();
 int get_nextbp(int curr);
 
 #endif

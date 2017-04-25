@@ -2,6 +2,8 @@
 #include "memory.h"
 #include "loader.h"
 #include "opcode.h"
+#include "run.h"
+#include "debug.h"
 
 const char *help_list[] = {
     "h[elp]",
@@ -226,9 +228,11 @@ void main_process(char *buffer, History *head, Symbol_table *Stable, symbol_info
                 break;
 
             case run:
+                error_check = command_run();
                 break;
 
             case bp:
+                error_check = command_bp(str_copy);
                 break;
         }
         if ( error_check == 1 )

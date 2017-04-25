@@ -505,12 +505,15 @@ int make_line(char *string, int type, size_t idx, int *flag,
 void print_file(char *filename){
     FILE *fp;
     char buffer[500];
+    char c;
     fp = fopen(filename, "r");
     if ( fp == NULL )
         fprintf(stderr, "FILE OPEN ERROR\n");
 
     while (fgets(buffer, sizeof(buffer), fp) != NULL)
-        printf("%s", buffer);
+        printf("%s", buffer), c = buffer[strlen(buffer)-1];
+    if ( c != '\n')
+        puts("");
 }
 
 /*
